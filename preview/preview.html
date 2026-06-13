@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FlowCast — Preview Dashboard</title>
+  <link rel="stylesheet" href="preview.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-container">
+    
+    <!-- ── Top Navigation Bar ────────────────────────── -->
+    <header class="navbar">
+      <div class="logo" id="logo-btn">
+        <div class="logo-icon">
+          <svg width="32" height="32" viewBox="0 0 28 28" fill="none">
+            <defs>
+              <linearGradient id="nav-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style="stop-color:#6366f1"/>
+                <stop offset="100%" style="stop-color:#a855f7"/>
+              </linearGradient>
+            </defs>
+            <circle cx="14" cy="14" r="13" stroke="url(#nav-grad)" stroke-width="2.5" fill="none"/>
+            <polygon points="11,8 11,20 22,14" fill="url(#nav-grad)"/>
+          </svg>
+        </div>
+        <span class="logo-text">FlowCast</span>
+        <span class="badge">Workspace</span>
+      </div>
+      <div class="nav-actions">
+        <button class="nav-btn" id="nav-dashboard-btn">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="7"/>
+            <rect x="14" y="3" width="7" height="7"/>
+            <rect x="14" y="14" width="7" height="7"/>
+            <rect x="3" y="14" width="7" height="7"/>
+          </svg>
+          <span>Library</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- ── Main Dashboard (Library Grid) ───────────────── -->
+    <main class="main-content" id="dashboard-view" style="display: none;">
+      <div class="content-header">
+        <div>
+          <h1 class="page-title">My Recordings</h1>
+          <p class="page-subtitle">Manage and share your video recordings</p>
+        </div>
+      </div>
+      
+      <!-- Empty State -->
+      <div class="empty-state" id="empty-state" style="display: none;">
+        <div class="empty-icon">🎥</div>
+        <h2>No recordings found</h2>
+        <p>Start recording from the FlowCast extension to see your videos here.</p>
+      </div>
+
+      <!-- Recordings Grid -->
+      <div class="recordings-grid" id="recordings-grid">
+        <!-- Dynamically populated -->
+      </div>
+    </main>
+
+    <!-- ── Single Video Preview View ────────────────────── -->
+    <main class="main-content" id="preview-view" style="display: none;">
+      <div class="back-link-bar">
+        <button class="back-btn" id="back-to-library-btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="15 18 9 12 15 6"/>
+          </svg>
+          <span>Back to Library</span>
+        </button>
+      </div>
+
+      <div class="preview-layout">
+        
+        <!-- Left Column: Video & Settings -->
+        <div class="video-column">
+          <!-- Title Section -->
+          <div class="title-section">
+            <div class="title-container">
+              <input type="text" id="video-title" class="title-input" value="Untitled Recording">
+              <button class="edit-icon-btn" title="Rename recording">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 20h9"/>
+                  <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+                </svg>
+              </button>
+            </div>
+            <div class="meta-date" id="video-date">June 12, 2026</div>
+          </div>
+
+          <!-- Video Container -->
+          <div class="player-container">
+            <video id="video-player" playsinline></video>
+            
+            <!-- Custom Video Controls Overlay -->
+            <div class="custom-controls" id="player-controls">
+              <!-- Progress Bar -->
+              <div class="progress-bar-container" id="progress-container">
+                <div class="progress-bar-bg">
+                  <div class="progress-bar-fill" id="progress-fill"></div>
+                  <div class="progress-bar-buffer" id="progress-buffer"></div>
+                  <div class="progress-scrubber" id="progress-scrubber"></div>
+                </div>
+              </div>
+
+              <!-- Action Controls -->
+              <div class="controls-row">
+                <div class="controls-group">
+                  <button class="control-btn" id="play-pause-btn" title="Play">
+                    <svg class="play-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                      <polygon points="5 3 19 12 5 21"/>
+                    </svg>
+                    <svg class="pause-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style="display:none;">
+                      <rect x="6" y="4" width="4" height="16" rx="1"/>
+                      <rect x="14" y="4" width="4" height="16" rx="1"/>
+                    </svg>
+                  </button>
+
+                  <button class="control-btn" id="rewind-btn" title="Rewind 10s">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M2.5 2v6h6"/>
+                      <path d="M2.66 15.57a10 10 0 1 0-.57-8.38l5.67-5.67"/>
+                    </svg>
+                  </button>
+
+                  <button class="control-btn" id="forward-btn" title="Forward 10s">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M21.5 2v6h-6"/>
+                      <path d="M21.34 15.57a10 10 0 1 1 .57-8.38l-5.67-5.67"/>
+                    </svg>
+                  </button>
+
+                  <!-- Time Display -->
+                  <div class="time-display">
+                    <span id="time-current">0:00</span> / <span id="time-duration">0:00</span>
+                  </div>
+                </div>
+
+                <div class="controls-group">
+                  <!-- Playback Speed Select -->
+                  <div class="speed-control">
+                    <button class="control-btn speed-toggle-btn" id="speed-btn">1.0x</button>
+                    <div class="speed-menu" id="speed-menu" style="display:none;">
+                      <button class="speed-option" data-speed="0.5">0.5x</button>
+                      <button class="speed-option active" data-speed="1.0">1.0x</button>
+                      <button class="speed-option" data-speed="1.25">1.25x</button>
+                      <button class="speed-option" data-speed="1.5">1.5x</button>
+                      <button class="speed-option" data-speed="2.0">2.0x</button>
+                    </div>
+                  </div>
+
+                  <!-- Volume Control -->
+                  <div class="volume-control">
+                    <button class="control-btn" id="volume-btn" title="Mute">
+                      <svg class="volume-high" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19"/>
+                        <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
+                      </svg>
+                      <svg class="volume-mute" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none;">
+                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19"/>
+                        <line x1="23" y1="9" x2="17" y2="15"/>
+                        <line x1="17" y1="9" x2="23" y2="15"/>
+                      </svg>
+                    </button>
+                    <input type="range" id="volume-slider" min="0" max="1" step="0.05" value="1" class="volume-slider">
+                  </div>
+
+                  <!-- Fullscreen Button -->
+                  <button class="control-btn" id="fullscreen-btn" title="Fullscreen">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Metadata and Actions Bar -->
+          <div class="action-bar-container">
+            <div class="metadata-chips">
+              <div class="meta-chip">
+                <span class="meta-chip-label">Duration</span>
+                <span class="meta-chip-val" id="meta-duration">0m 0s</span>
+              </div>
+              <div class="meta-chip">
+                <span class="meta-chip-label">Format</span>
+                <span class="meta-chip-val" id="meta-format">webm</span>
+              </div>
+              <div class="meta-chip">
+                <span class="meta-chip-label">Resolution</span>
+                <span class="meta-chip-val" id="meta-res">1080p</span>
+              </div>
+              <div class="meta-chip">
+                <span class="meta-chip-label">File Size</span>
+                <span class="meta-chip-val" id="meta-size">0.0 MB</span>
+              </div>
+            </div>
+
+            <div class="action-buttons">
+              <button class="btn btn-secondary" id="copy-link-btn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                </svg>
+                <span>Copy Share Link</span>
+              </button>
+              
+              <button class="btn btn-primary" id="download-btn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="7 10 12 15 17 10"/>
+                  <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                <span>Download Video</span>
+              </button>
+
+              <button class="btn btn-danger" id="delete-btn" title="Delete Recording">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="3 6 5 6 21 6"/>
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Column: Interactive Video Notes -->
+        <div class="transcript-column">
+          <div class="column-header">
+            <h2 class="column-title">
+              <span class="pulse-icon"></span>
+              Interactive Notes
+            </h2>
+            <button class="btn-text-only" id="copy-notes-btn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+              </svg>
+              <span>Copy Notes</span>
+            </button>
+          </div>
+
+          <div class="transcript-search-box" style="gap: 8px;">
+            <input type="text" id="note-text-input" placeholder="Add a note at current time..." style="flex: 1; background: rgba(0, 0, 0, 0.2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; color: #fff; font-size: 13px; outline: none; transition: border-color var(--transition-fast);">
+            <button class="btn btn-primary" id="add-note-btn" style="padding: 8px 16px; font-size: 12px; border-radius: 8px;">Add</button>
+          </div>
+
+          <div class="transcript-body" id="notes-container">
+            <!-- Notes paragraphs dynamic -->
+            <div class="no-transcript" id="no-notes-placeholder" style="display: none;">
+              No notes added yet. Type a note above to add one at the current playback time!
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </main>
+
+    <!-- ── Setup/Permissions View ────────────────────── -->
+    <main class="main-content" id="setup-view" style="display: none; padding-top: 80px;">
+      <div class="setup-container" style="max-width: 500px; margin: 0 auto; background: var(--bg-card); border: 1px solid var(--border); padding: 40px; border-radius: var(--radius-lg); text-align: center; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); box-shadow: 0 20px 40px rgba(0,0,0,0.5);">
+        <div class="setup-icon" style="font-size: 64px; margin-bottom: 24px; animation: pulseAccent 2.5s ease-in-out infinite; display: inline-block;">🎙️</div>
+        <h1 class="page-title" style="font-size: 24px; margin-bottom: 12px;">Permission Required</h1>
+        <p class="page-subtitle" style="font-size: 14px; color: var(--text-2); line-height: 1.6; margin-bottom: 30px;">
+          FlowCast needs access to your microphone and camera to capture recording audio and display the webcam bubble. Please click below to grant access.
+        </p>
+        <button class="btn btn-primary" id="setup-grant-btn" style="width: 100%; padding: 14px; font-size: 15px; border-radius: var(--radius-sm); margin-bottom: 20px;">Grant Access</button>
+        <div id="setup-status" style="display: none; font-size: 13px; font-weight: 600; padding: 10px; border-radius: var(--radius-sm);"></div>
+      </div>
+    </main>
+
+  </div>
+
+  <!-- Toast Notification -->
+  <div class="toast" id="toast-notification">
+    <span id="toast-message">Link copied to clipboard!</span>
+  </div>
+
+  <!-- IndexedDB Script -->
+  <script src="../utils/db.js"></script>
+  <!-- Main Logic -->
+  <script src="preview.js"></script>
+</body>
+</html>

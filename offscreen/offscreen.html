@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>FlowCast — Offscreen Recording Engine</title>
+</head>
+<body>
+  <!-- 
+    This page is never visible to the user.
+    It runs in the background to capture media streams and record them.
+    Required because Manifest V3 service workers cannot access DOM media APIs.
+  -->
+  <script src="../utils/db.js"></script>
+  <script src="offscreen.js"></script>
+</body>
+</html>

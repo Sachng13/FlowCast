@@ -1,0 +1,376 @@
+/**
+ * FlowCast — Content Script Styles
+ * 
+ * All styles are prefixed with `flowcast-` to avoid collisions
+ * with the host page's styles. These elements are injected into
+ * the page DOM (not Shadow DOM) for screen capture visibility.
+ * 
+ * Uses !important sparingly to override page styles.
+ */
+
+/* ── Countdown Overlay ────────────────────────────────── */
+
+.flowcast-countdown-overlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  background: rgba(0, 0, 0, 0.65) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 2147483640 !important;
+  backdrop-filter: blur(4px) !important;
+  -webkit-backdrop-filter: blur(4px) !important;
+  pointer-events: none !important;
+  transition: opacity 0.3s ease !important;
+}
+
+.flowcast-countdown-number {
+  font-family: system-ui, -apple-system, sans-serif !important;
+  font-size: 160px !important;
+  font-weight: 800 !important;
+  color: #ffffff !important;
+  text-shadow: 0 0 60px rgba(99, 102, 241, 0.6), 0 0 120px rgba(99, 102, 241, 0.3) !important;
+  animation: flowcast-countdown-pop 0.8s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  line-height: 1 !important;
+  user-select: none !important;
+}
+
+@keyframes flowcast-countdown-pop {
+  0%   { transform: scale(2); opacity: 0; }
+  40%  { transform: scale(0.95); opacity: 1; }
+  60%  { transform: scale(1.05); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* ── Camera Bubble ────────────────────────────────────── */
+
+.flowcast-camera-bubble {
+  position: fixed !important;
+  bottom: 100px !important;
+  right: 32px !important;
+  width: 180px !important;
+  height: 180px !important;
+  border-radius: 50% !important;
+  overflow: hidden !important;
+  z-index: 2147483639 !important;
+  cursor: grab !important;
+  border: 3px solid rgba(99, 102, 241, 0.5) !important;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 0 20px rgba(99, 102, 241, 0.2) !important;
+  transition: width 0.3s ease, height 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease !important;
+  background: #0a0a14 !important;
+  user-select: none !important;
+}
+
+.flowcast-camera-bubble:active {
+  cursor: grabbing !important;
+}
+
+.flowcast-camera-bubble.flowcast-bubble-sm {
+  width: 120px !important;
+  height: 120px !important;
+}
+
+.flowcast-camera-bubble.flowcast-bubble-lg {
+  width: 260px !important;
+  height: 260px !important;
+}
+
+.flowcast-camera-bubble.flowcast-bubble-speaking {
+  border-color: rgba(34, 211, 238, 0.7) !important;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 0 25px rgba(34, 211, 238, 0.35),
+    0 0 50px rgba(34, 211, 238, 0.15) !important;
+}
+
+.flowcast-camera-video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  transform: scaleX(-1) !important;
+  display: block !important;
+}
+
+/* ── Control Bar ──────────────────────────────────────── */
+
+.flowcast-controls {
+  position: fixed !important;
+  bottom: 24px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  padding: 8px 12px !important;
+  background: rgba(12, 12, 20, 0.85) !important;
+  backdrop-filter: blur(20px) saturate(1.5) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(1.5) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 16px !important;
+  z-index: 2147483641 !important;
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.04) !important;
+  animation: flowcast-slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  user-select: none !important;
+}
+
+@keyframes flowcast-slide-up {
+  from { transform: translateX(-50%) translateY(24px); opacity: 0; }
+  to   { transform: translateX(-50%) translateY(0); opacity: 1; }
+}
+
+.flowcast-ctrl-btn {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 40px !important;
+  height: 40px !important;
+  border: none !important;
+  border-radius: 10px !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: #cbd5e1 !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  padding: 0 !important;
+  font-family: system-ui, -apple-system, sans-serif !important;
+}
+
+.flowcast-ctrl-btn:hover {
+  background: rgba(255, 255, 255, 0.12) !important;
+  color: #f1f5f9 !important;
+  transform: scale(1.05) !important;
+}
+
+.flowcast-ctrl-btn:active {
+  transform: scale(0.95) !important;
+}
+
+.flowcast-ctrl-btn.flowcast-stop-btn {
+  background: rgba(239, 68, 68, 0.2) !important;
+  color: #fca5a5 !important;
+  width: 48px !important;
+  height: 40px !important;
+}
+
+.flowcast-ctrl-btn.flowcast-stop-btn:hover {
+  background: rgba(239, 68, 68, 0.35) !important;
+  color: #fecaca !important;
+}
+
+.flowcast-ctrl-btn.flowcast-active {
+  background: rgba(99, 102, 241, 0.2) !important;
+  color: #a5b4fc !important;
+}
+
+.flowcast-ctrl-divider {
+  width: 1px !important;
+  height: 24px !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  margin: 0 4px !important;
+}
+
+.flowcast-timer {
+  font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  color: #f1f5f9 !important;
+  min-width: 64px !important;
+  text-align: center !important;
+  padding: 0 8px !important;
+  letter-spacing: 0.02em !important;
+}
+
+.flowcast-timer.flowcast-paused {
+  animation: flowcast-blink 1s ease-in-out infinite !important;
+  color: #fbbf24 !important;
+}
+
+@keyframes flowcast-blink {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.3; }
+}
+
+/* ── Annotation Canvas ────────────────────────────────── */
+
+.flowcast-annotation-canvas {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 2147483638 !important;
+  pointer-events: none !important;
+  cursor: default !important;
+}
+
+.flowcast-annotation-canvas.flowcast-drawing-active {
+  pointer-events: auto !important;
+  cursor: crosshair !important;
+}
+
+/* ── Spotlight Overlay ────────────────────────────────── */
+
+.flowcast-spotlight-overlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 2147483637 !important;
+  pointer-events: none !important;
+  transition: opacity 0.2s ease !important;
+}
+
+/* ── Drawing Tools Palette ────────────────────────────── */
+
+.flowcast-draw-palette {
+  position: fixed !important;
+  bottom: 80px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  padding: 8px 12px !important;
+  background: rgba(12, 12, 20, 0.9) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 12px !important;
+  z-index: 2147483642 !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4) !important;
+  animation: flowcast-slide-up 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.flowcast-color-dot {
+  width: 24px !important;
+  height: 24px !important;
+  border-radius: 50% !important;
+  border: 2px solid transparent !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+  padding: 0 !important;
+  background-clip: padding-box !important;
+}
+
+.flowcast-color-dot:hover {
+  transform: scale(1.15) !important;
+}
+
+.flowcast-color-dot.flowcast-active {
+  border-color: #ffffff !important;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.3) !important;
+}
+
+/* ── Processing Overlay ───────────────────────────────── */
+
+.flowcast-processing-overlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  background: rgba(0, 0, 0, 0.7) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 16px !important;
+  z-index: 2147483643 !important;
+  backdrop-filter: blur(4px) !important;
+  -webkit-backdrop-filter: blur(4px) !important;
+}
+
+.flowcast-spinner {
+  width: 40px !important;
+  height: 40px !important;
+  border: 3px solid rgba(255, 255, 255, 0.1) !important;
+  border-top-color: #6366f1 !important;
+  border-radius: 50% !important;
+  animation: flowcast-spin 0.8s linear infinite !important;
+}
+
+@keyframes flowcast-spin {
+  to { transform: rotate(360deg); }
+}
+
+.flowcast-processing-text {
+  font-family: system-ui, -apple-system, sans-serif !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  color: #f1f5f9 !important;
+}
+
+/* ── Floating Emojis Reaction Animation ────────────────── */
+
+@keyframes flowcast-emoji-float {
+  0% {
+    transform: translate(0, 0) scale(0.5);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+    transform: translate(var(--x-offset-start), var(--y-offset-start)) scale(1.2);
+  }
+  100% {
+    transform: translate(var(--x-offset-end), -220px) rotate(var(--rotate-angle)) scale(0.8);
+    opacity: 0;
+  }
+}
+
+.flowcast-floating-emoji {
+  position: fixed !important;
+  z-index: 2147483645 !important;
+  font-size: 28px !important;
+  pointer-events: none !important;
+  animation: flowcast-emoji-float 1.6s cubic-bezier(0.25, 1, 0.5, 1) forwards !important;
+  user-select: none !important;
+}
+
+/* ── Emoji Selector Popover ───────────────────────────── */
+
+.flowcast-emoji-popover {
+  position: absolute !important;
+  bottom: 54px !important;
+  background: rgba(12, 12, 20, 0.95) !important;
+  backdrop-filter: blur(15px) !important;
+  -webkit-backdrop-filter: blur(15px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 12px !important;
+  padding: 8px !important;
+  display: flex !important;
+  gap: 6px !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5) !important;
+  animation: flowcast-slide-up 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  z-index: 2147483646 !important;
+}
+
+.flowcast-emoji-option {
+  font-size: 20px !important;
+  background: transparent !important;
+  border: none !important;
+  cursor: pointer !important;
+  padding: 6px !important;
+  border-radius: 8px !important;
+  transition: all 0.15s ease !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.flowcast-emoji-option:hover {
+  background: rgba(255, 255, 255, 0.12) !important;
+  transform: scale(1.2) !important;
+}
+
+.flowcast-emoji-option:active {
+  transform: scale(0.9) !important;
+}
