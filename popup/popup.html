@@ -28,6 +28,38 @@
       <span class="version">v1.0</span>
     </header>
 
+    <!-- Live preview (Loom-style) -->
+    <div class="preview-panel" id="preview-panel">
+      <div class="preview-bubble-wrap" id="preview-bubble-wrap">
+        <video id="preview-video" autoplay muted playsinline></video>
+        <div class="preview-placeholder" id="preview-placeholder">
+          <span>📷</span>
+          <p>Camera preview</p>
+        </div>
+        <div class="preview-live-badge" id="preview-live-badge">LIVE</div>
+      </div>
+      <div class="audio-meter-block">
+        <div class="meter-header">
+          <span class="meter-label">Microphone</span>
+          <span class="meter-status" id="meter-status">Speak to test</span>
+        </div>
+        <div class="audio-meter" id="audio-meter">
+          <div class="meter-bar"></div>
+          <div class="meter-bar"></div>
+          <div class="meter-bar"></div>
+          <div class="meter-bar"></div>
+          <div class="meter-bar"></div>
+          <div class="meter-bar"></div>
+          <div class="meter-bar"></div>
+          <div class="meter-bar"></div>
+          <div class="meter-bar"></div>
+          <div class="meter-bar"></div>
+          <div class="meter-bar"></div>
+          <div class="meter-bar"></div>
+        </div>
+      </div>
+    </div>
+
     <!-- Compact device status -->
     <div class="device-status" id="device-status" style="display: none;">
       <span class="status-chip" id="cam-chip"><span class="dot"></span> Camera</span>

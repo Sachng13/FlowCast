@@ -1,6 +1,6 @@
 /**
  * FlowCast — Popup Logic
- * Small extension popup with inline permissions and recording controls.
+ * Small extension popup with Loom-style live preview + mic meter.
  */
 
 const modeTabs       = document.querySelectorAll('.mode-tab');
@@ -14,10 +14,20 @@ const errorText      = document.getElementById('error-text');
 const deviceStatus   = document.getElementById('device-status');
 const camChip        = document.getElementById('cam-chip');
 const micChip        = document.getElementById('mic-chip');
+const previewPanel   = document.getElementById('preview-panel');
+const previewBubble  = document.getElementById('preview-bubble-wrap');
+const previewVideo   = document.getElementById('preview-video');
+const previewPlaceholder = document.getElementById('preview-placeholder');
+const previewLiveBadge = document.getElementById('preview-live-badge');
+const meterStatus    = document.getElementById('meter-status');
+const meterBars      = document.querySelectorAll('.meter-bar');
 
 let selectedMode = 'screen-cam';
 let eventsBound = false;
 let previewStream = null;
+let audioContext = null;
+let analyser = null;
+let meterAnimId = null;
 
 // ── Permissions ────────────────────────────────────────────
 
@@ -76,7 +86,8 @@ async function initializePopup() {
   await checkCurrentState();
   await enumerateDevices();
   await loadSavedSettings();
-  await verifyDevices();
+  updatePreviewVisibility();
+  await startLivePreview();
   bindEvents();
 }
 
@@ -111,7 +122,7 @@ async function checkCurrentState() {
   } catch (_) {}
 }
 
-// ── Device enumeration & verification ────────────────────────
+// ── Device enumeration ─────────────────────────────────────
 
 async function enumerateDevices() {
   try {
@@ -149,9 +160,19 @@ async function enumerateDevices() {
   }
 }
 
-/** Quick check that selected devices work — updates green status chips. */
-async function verifyDevices() {
+// ── Live preview + audio meter (Loom-style) ───────────────
+
+function updatePreviewVisibility() {
+  const showCam = selectedMode !== 'screen';
+  if (previewBubble) {
+    previewBubble.style.display = showCam ? 'flex' : 'none';
+  }
+  previewPanel?.classList.toggle('screen-only', selectedMode === 'screen');
+}
+
+async function startLivePreview() {
   stopPreviewStream();
+  resetMeter();
 
   const wantVideo = selectedMode !== 'screen';
   const camId = cameraSelect.value;
@@ -160,32 +181,44 @@ async function verifyDevices() {
   const constraints = {};
   if (wantVideo) {
     constraints.video = camId
-      ? { deviceId: { ideal: camId }, width: { ideal: 320 }, height: { ideal: 240 } }
-      : { width: { ideal: 320 }, height: { ideal: 240 } };
+      ? { deviceId: { ideal: camId }, width: { ideal: 480 }, height: { ideal: 360 } }
+      : { width: { ideal: 480 }, height: { ideal: 360 }, facingMode: 'user' };
   }
   constraints.audio = micId
-    ? { deviceId: { ideal: micId }, echoCancellation: true }
-    : { echoCancellation: true };
+    ? { deviceId: { ideal: micId }, echoCancellation: true, noiseSuppression: true }
+    : { echoCancellation: true, noiseSuppression: true };
 
-  if (selectedMode === 'screen') delete constraints.video;
-
-  let camOk = selectedMode === 'screen';
+  let camOk = !wantVideo;
   let micOk = false;
 
   try {
     previewStream = await navigator.mediaDevices.getUserMedia(constraints);
-    camOk = wantVideo ? previewStream.getVideoTracks().some(t => t.readyState === 'live') : true;
-    micOk = previewStream.getAudioTracks().some(t => t.readyState === 'live');
   } catch (err) {
-    // Try audio-only fallback
     if (wantVideo) {
       try {
-        previewStream = await navigator.mediaDevices.getUserMedia({
-          audio: constraints.audio,
-        });
-        micOk = previewStream.getAudioTracks().length > 0;
-        camOk = false;
+        previewStream = await navigator.mediaDevices.getUserMedia({ audio: constraints.audio });
       } catch (_) {}
+    }
+  }
+
+  if (previewStream) {
+    const videoTrack = previewStream.getVideoTracks()[0];
+    const audioTrack = previewStream.getAudioTracks()[0];
+
+    camOk = wantVideo && videoTrack && videoTrack.readyState === 'live';
+    micOk = audioTrack && audioTrack.readyState === 'live';
+
+    if (camOk && previewVideo) {
+      previewVideo.srcObject = previewStream;
+      previewBubble?.classList.add('has-video');
+      previewLiveBadge?.classList.add('active');
+    } else {
+      previewBubble?.classList.remove('has-video');
+      previewLiveBadge?.classList.remove('active');
+    }
+
+    if (micOk) {
+      startAudioMeter(previewStream);
     }
   }
 
@@ -194,16 +227,88 @@ async function verifyDevices() {
   setChip(micChip, micOk);
 }
 
+function startAudioMeter(stream) {
+  stopAudioMeter();
+
+  audioContext = new AudioContext();
+  analyser = audioContext.createAnalyser();
+  analyser.fftSize = 256;
+  analyser.smoothingTimeConstant = 0.45;
+
+  const source = audioContext.createMediaStreamSource(stream);
+  source.connect(analyser);
+
+  if (audioContext.state === 'suspended') {
+    audioContext.resume();
+  }
+
+  const data = new Uint8Array(analyser.frequencyBinCount);
+
+  function tick() {
+    analyser.getByteFrequencyData(data);
+    let sum = 0;
+    for (let i = 0; i < data.length; i++) sum += data[i];
+    const level = Math.min(1, sum / data.length / 75);
+
+    meterBars.forEach((bar, i) => {
+      const threshold = (i + 1) / meterBars.length;
+      const active = level >= threshold * 0.45;
+      const hot = level >= threshold * 0.8;
+      bar.classList.toggle('active', active);
+      bar.classList.toggle('hot', hot);
+      bar.style.height = active ? `${5 + threshold * 18}px` : '4px';
+    });
+
+    if (level > 0.06) {
+      meterStatus.textContent = 'Mic working';
+      meterStatus.classList.add('ok');
+      setChip(micChip, true);
+    }
+
+    meterAnimId = requestAnimationFrame(tick);
+  }
+
+  tick();
+}
+
+function stopAudioMeter() {
+  if (meterAnimId) {
+    cancelAnimationFrame(meterAnimId);
+    meterAnimId = null;
+  }
+  if (audioContext) {
+    audioContext.close().catch(() => {});
+    audioContext = null;
+    analyser = null;
+  }
+  resetMeter();
+}
+
+function resetMeter() {
+  meterBars.forEach(bar => {
+    bar.classList.remove('active', 'hot');
+    bar.style.height = '4px';
+  });
+  if (meterStatus) {
+    meterStatus.textContent = 'Speak to test';
+    meterStatus.classList.remove('ok');
+  }
+}
+
 function setChip(el, ok) {
   el.classList.toggle('ok', ok);
   el.classList.toggle('fail', !ok);
 }
 
 function stopPreviewStream() {
+  stopAudioMeter();
   if (previewStream) {
     previewStream.getTracks().forEach(t => t.stop());
     previewStream = null;
   }
+  if (previewVideo) previewVideo.srcObject = null;
+  previewBubble?.classList.remove('has-video');
+  previewLiveBadge?.classList.remove('active');
 }
 
 // ── Settings ───────────────────────────────────────────────
@@ -258,19 +363,20 @@ function bindEvents() {
       tab.classList.add('active');
       selectedMode = tab.dataset.mode;
       updateModeVisibility();
+      updatePreviewVisibility();
       await saveSettings();
-      await verifyDevices();
+      await startLivePreview();
     });
   });
 
   cameraSelect.addEventListener('change', async () => {
     await saveSettings();
-    await verifyDevices();
+    await startLivePreview();
   });
 
   micSelect.addEventListener('change', async () => {
     await saveSettings();
-    await verifyDevices();
+    await startLivePreview();
   });
 
   document.querySelectorAll('input[name="quality"]').forEach(r => {
@@ -294,10 +400,7 @@ async function handleStartRecording() {
   startBtn.disabled = true;
   errorBanner.style.display = 'none';
 
-  const settings = getCurrentSettings();
-
   try {
-    // Verify there is a recordable tab before proceeding
     const tabCheck = await chrome.runtime.sendMessage({ type: 'CHECK_RECORDABLE_TAB' });
     if (!tabCheck?.success) {
       showError(tabCheck?.error || 'No recordable tab found. Open a website first.');
@@ -310,27 +413,26 @@ async function handleStartRecording() {
 
     const response = await chrome.runtime.sendMessage({
       type: 'START_RECORDING',
-      settings,
+      settings: getCurrentSettings(),
     });
 
     if (response?.success) {
       showRecordingActive();
-      // Keep popup open briefly so screen-share picker can appear
       setTimeout(() => window.close(), 1200);
     } else {
       showError(response?.error || 'Failed to start recording');
       startBtn.disabled = false;
-      await verifyDevices();
+      await startLivePreview();
     }
   } catch (err) {
     showError(err.message || 'Failed to start recording. Reload the extension.');
     startBtn.disabled = false;
-    await verifyDevices();
+    await startLivePreview();
   }
 }
 
 function showRecordingActive() {
-  document.querySelectorAll('.section, .start-btn, .footer, .device-status, .start-hint').forEach(el => {
+  document.querySelectorAll('.section, .start-btn, .footer, .device-status, .start-hint, .preview-panel').forEach(el => {
     el.style.display = 'none';
   });
   recordingView.style.display = 'flex';
