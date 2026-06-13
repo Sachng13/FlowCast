@@ -637,7 +637,7 @@ body {
   appearance: none;
   width: 70px;
   height: 4px;
-  background: rgba(255, 255, 255, 0.2);
+  background: linear-gradient(90deg, var(--primary) 100%, rgba(255, 255, 255, 0.2) 100%);
   border-radius: 99px;
   outline: none;
   cursor: pointer;
@@ -654,7 +654,7 @@ body {
 }
 
 .volume-slider:hover {
-  background: rgba(255, 255, 255, 0.35);
+  filter: brightness(1.15);
 }
 
 /* Playback Speed Menu Overlay */

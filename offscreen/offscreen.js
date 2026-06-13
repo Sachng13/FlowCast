@@ -97,86 +97,32 @@ async function handleInit(settings, recordingId) {
   hasError = false;
 
   try {
-    const isCamOnly = settings.mode === 'cam';
-
-    if (isCamOnly) {
-      // ── Camera-Only: capture video + mic in one call for reliability ──
-      const videoConstraints = {
+    const displayConstraints = {
+      video: {
         width: { ideal: getResolutionWidth(settings.quality) },
         height: { ideal: getResolutionHeight(settings.quality) },
         frameRate: { ideal: 30 },
-      };
-      if (settings.camId) {
-        videoConstraints.deviceId = { ideal: settings.camId };
-      }
+      },
+      audio: true,
+    };
 
-      const audioConstraints = {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-      };
-      if (settings.micId) {
-        audioConstraints.deviceId = { ideal: settings.micId };
-      }
+    screenStream = await navigator.mediaDevices.getDisplayMedia(displayConstraints);
 
-      let camStream;
-      try {
-        camStream = await navigator.mediaDevices.getUserMedia({
-          video: videoConstraints,
-          audio: settings.micEnabled !== false ? audioConstraints : false,
-        });
-      } catch (camErr) {
-        // Retry without device IDs
-        delete videoConstraints.deviceId;
-        delete audioConstraints.deviceId;
-        camStream = await navigator.mediaDevices.getUserMedia({
-          video: videoConstraints,
-          audio: settings.micEnabled !== false ? audioConstraints : false,
-        });
-      }
+    screenStream.getVideoTracks()[0].addEventListener('ended', () => {
+      console.log('[FlowCast Offscreen] Screen sharing stopped by user');
+      handleStop();
+    });
 
-      screenStream = new MediaStream(camStream.getVideoTracks());
-      if (camStream.getAudioTracks().length > 0) {
-        micStream = new MediaStream(camStream.getAudioTracks());
-      } else if (settings.micEnabled !== false) {
-        micStream = await acquireMicStream(settings.micId);
-      }
-
-      camStream.getVideoTracks()[0]?.addEventListener('ended', () => {
-        console.log('[FlowCast Offscreen] Camera track ended');
-        handleStop();
-      });
-    } else {
-      // ── Screen Capture ───────────────────────────────────
-      const displayConstraints = {
-        video: {
-          width: { ideal: getResolutionWidth(settings.quality) },
-          height: { ideal: getResolutionHeight(settings.quality) },
-          frameRate: { ideal: 30 },
-        },
-        audio: true,
-      };
-
-      screenStream = await navigator.mediaDevices.getDisplayMedia(displayConstraints);
-
-      screenStream.getVideoTracks()[0].addEventListener('ended', () => {
-        console.log('[FlowCast Offscreen] Screen sharing stopped by user');
-        handleStop();
-      });
-    }
-
-    // ── Microphone Capture (skip if already acquired e.g. cam-only mode) ──
-    if (settings.micEnabled !== false && !micStream) {
+    if (settings.micEnabled !== false) {
       micStream = await acquireMicStream(settings.micId);
       if (!micStream) {
         chrome.runtime.sendMessage({
           type: 'MIC_UNAVAILABLE',
-          warning: 'Microphone unavailable — recording will continue without mic audio.',
+          warning: 'Microphone unavailable - recording will continue without mic audio.',
         });
       }
     }
 
-    // Verify video track is live before proceeding
     const videoTrack = screenStream?.getVideoTracks()[0];
     if (!videoTrack || videoTrack.readyState !== 'live') {
       throw new Error('Video track is not active. Please try again.');
@@ -189,12 +135,11 @@ async function handleInit(settings, recordingId) {
   } catch (err) {
     console.error('[FlowCast Offscreen] Stream acquisition failed:', err);
 
-    const isCamOnly = settings.mode === 'cam';
     chrome.runtime.sendMessage({
       type: 'CAPTURE_ERROR',
       error: err.name === 'NotAllowedError'
-        ? (isCamOnly ? 'Camera access was denied.' : 'Screen sharing was cancelled or denied.')
-        : `Failed to capture ${isCamOnly ? 'camera' : 'screen'}: ${err.message}`,
+        ? 'Screen sharing was cancelled or denied.'
+        : `Failed to capture screen: ${err.message}`,
     });
   }
 }

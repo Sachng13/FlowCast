@@ -318,7 +318,7 @@ async function loadSavedSettings() {
   if (!s) return;
 
   if (s.mode) {
-    selectedMode = s.mode;
+    selectedMode = ['screen-cam', 'screen'].includes(s.mode) ? s.mode : 'screen-cam';
     modeTabs.forEach(t => t.classList.toggle('active', t.dataset.mode === selectedMode));
     updateModeVisibility();
   }
@@ -390,9 +390,7 @@ function updateModeVisibility() {
   cameraSection.style.display = selectedMode === 'screen' ? 'none' : 'flex';
   const hint = document.getElementById('start-hint');
   if (hint) {
-    hint.textContent = selectedMode === 'cam'
-      ? 'Recording starts with a countdown on the current page.'
-      : 'A screen-share dialog will appear — pick your screen or tab.';
+    hint.textContent = 'A screen-share dialog will appear — pick your screen or tab.';
   }
 }
 

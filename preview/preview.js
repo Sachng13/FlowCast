@@ -460,11 +460,13 @@ function setupPlayerControls() {
     videoPlayer.volume = val;
     videoPlayer.muted = (val === 0);
     updateVolumeIcon();
+    updateVolumeFill();
   });
 
   volumeBtn.addEventListener('click', () => {
     videoPlayer.muted = !videoPlayer.muted;
     updateVolumeIcon();
+    updateVolumeFill();
   });
 
   // Time Updates (timeline progress)
@@ -512,6 +514,7 @@ function setupPlayerControls() {
     if (dur && isFinite(dur)) {
       timeDuration.textContent = formatSeconds(Math.round(dur));
     }
+    updateVolumeFill();
   });
 
   // Speed Control Menu toggling
@@ -585,6 +588,12 @@ function updateVolumeIcon() {
   } else {
     volumeSlider.value = videoPlayer.volume;
   }
+}
+
+function updateVolumeFill() {
+  const value = parseFloat(volumeSlider.value) || 0;
+  const pct = Math.max(0, Math.min(100, value * 100));
+  volumeSlider.style.background = `linear-gradient(90deg, var(--primary) ${pct}%, rgba(255, 255, 255, 0.2) ${pct}%)`;
 }
 
 // ============================================================

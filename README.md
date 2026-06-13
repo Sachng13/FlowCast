@@ -121,7 +121,7 @@ To load the extension in Google Chrome:
 ## 🎮 How to Use
 
 1. Click the **FlowCast icon** in your toolbar (or use the shortcut `Alt + Shift + L`).
-2. Choose your **Recording Mode** (Screen+Cam, Screen Only, Cam Only).
+2. Choose your **Recording Mode** (Screen+Cam or Screen Only).
 3. Select your preferred **Camera** and **Microphone** devices.
 4. Select the output quality (720p, 1080p, 4K).
 5. Click **Start Recording**.

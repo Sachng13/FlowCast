@@ -217,7 +217,7 @@ async function startPreview() {
         });
         const audioTrack = previewStream.getAudioTracks()[0];
         micReady = !!audioTrack;
-        camReady = selectedMode !== 'cam';
+        camReady = false;
         previewFrame.classList.remove('has-video');
         camLabel.textContent = 'Camera unavailable';
         setStatus(camStatus, 'error');
@@ -325,7 +325,7 @@ async function loadSettings() {
   if (!s) return;
 
   if (s.mode) {
-    selectedMode = s.mode;
+    selectedMode = ['screen-cam', 'screen'].includes(s.mode) ? s.mode : 'screen-cam';
     modeTabs.forEach(t => t.classList.toggle('active', t.dataset.mode === selectedMode));
     cameraSection.style.display = selectedMode === 'screen' ? 'none' : 'block';
   }
@@ -369,9 +369,7 @@ function bindEvents() {
       tab.classList.add('active');
       selectedMode = tab.dataset.mode;
       cameraSection.style.display = selectedMode === 'screen' ? 'none' : 'block';
-      document.getElementById('record-hint').innerHTML = selectedMode === 'screen' || selectedMode === 'screen-cam'
-        ? 'When sharing your screen, enable <strong>"Share tab audio"</strong> in the browser dialog to capture system sound.'
-        : 'Make sure your camera and mic indicators are green before recording.';
+      document.getElementById('record-hint').innerHTML = 'When sharing your screen, enable <strong>"Share tab audio"</strong> in the browser dialog to capture system sound.';
       await saveSettings();
       await startPreview();
     });
@@ -400,11 +398,7 @@ function updateStartButton() {
   startBtn.disabled = !canRecord;
 
   if (!canRecord) {
-    if (!micReady && selectedMode !== 'cam') {
-      startBtn.title = 'Waiting for microphone…';
-    } else if (!camReady && selectedMode === 'cam') {
-      startBtn.title = 'Waiting for camera…';
-    } else if (!micReady && selectedMode === 'cam') {
+    if (!micReady) {
       startBtn.title = 'Waiting for microphone…';
     }
   } else {
@@ -414,7 +408,6 @@ function updateStartButton() {
 
 function isReadyToRecord() {
   if (selectedMode === 'screen') return micReady;
-  if (selectedMode === 'cam') return camReady && micReady;
   return camReady && micReady; // screen-cam
 }
 
