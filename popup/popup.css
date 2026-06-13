@@ -409,33 +409,6 @@ body {
   80%      { transform: translateX(2px); }
 }
 
-/* ── Footer ───────────────────────────────────────────── */
-
-.footer {
-  display: flex;
-  justify-content: center;
-  padding-top: 4px;
-}
-
-.shortcut-hint {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  color: var(--text-3);
-}
-
-kbd {
-  display: inline-block;
-  padding: 1px 6px;
-  font-size: 10px;
-  font-family: inherit;
-  color: var(--text-2);
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-}
-
 /* ── Permission Overlay ────────────────────────────────── */
 .permission-overlay {
   position: absolute;

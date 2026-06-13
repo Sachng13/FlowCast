@@ -69,12 +69,12 @@ graph TD
 
 ### Manifest V3 Constraints & Solutions
 
-| Constraint | Solution |
-| :--- | :--- |
-| **Service Workers can't access DOM/media APIs** | We dynamically instantiate an `offscreen` document using the `DISPLAY_MEDIA` and `USER_MEDIA` justifications. The offscreen document handles screen capturing, mic mixing, and recording. |
-| **Offscreen documents cannot draw on-screen UI** | The background service worker injects a CSS stylesheet and a `content.js` script into the user's active tab. The camera bubble and control tools are drawn directly into the tab's DOM. |
-| **Content scripts are destroyed on navigation** | The service worker listens to `chrome.tabs.onUpdated`. If the user navigates to a new page while recording, the service worker immediately re-injects the content script, restores the camera/timer states, and resumes recording seamlessly. |
-| **Service workers are ephemeral (can restart)** | The orchestrator persists the recording state machine to session storage (`chrome.storage.session`). If the service worker is garbage collected during a long recording, it recovers its state instantly upon wake-up. |
+| Constraint                                       | Solution                                                                                                                                                                                                                                      |
+| :----------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Service Workers can't access DOM/media APIs**  | We dynamically instantiate an `offscreen` document using the `DISPLAY_MEDIA` and `USER_MEDIA` justifications. The offscreen document handles screen capturing, mic mixing, and recording.                                                     |
+| **Offscreen documents cannot draw on-screen UI** | The background service worker injects a CSS stylesheet and a `content.js` script into the user's active tab. The camera bubble and control tools are drawn directly into the tab's DOM.                                                       |
+| **Content scripts are destroyed on navigation**  | The service worker listens to `chrome.tabs.onUpdated`. If the user navigates to a new page while recording, the service worker immediately re-injects the content script, restores the camera/timer states, and resumes recording seamlessly. |
+| **Service workers are ephemeral (can restart)**  | The orchestrator persists the recording state machine to session storage (`chrome.storage.session`). If the service worker is garbage collected during a long recording, it recovers its state instantly upon wake-up.                        |
 
 ---
 
@@ -120,7 +120,7 @@ To load the extension in Google Chrome:
 
 ## 🎮 How to Use
 
-1. Click the **FlowCast icon** in your toolbar (or use the shortcut `Alt + Shift + L`).
+1. Click the **FlowCast icon** in your toolbar.
 2. Choose your **Recording Mode** (Screen+Cam or Screen Only).
 3. Select your preferred **Camera** and **Microphone** devices.
 4. Select the output quality (720p, 1080p, 4K).
@@ -134,18 +134,3 @@ To load the extension in Google Chrome:
 8. Click **Stop** (red square) in the toolbar. A loading indicator will appear as the chunks are compiled.
 9. A new tab will automatically open, showing the **FlowCast Preview Dashboard**!
    - Play the video, change speeds, search the transcript, click any word to seek the player, or rename the title by editing the input directly.
-
----
-
-## 🧪 Verification & Testing Plan
-
-### Automated Checks
-Run standard Chrome Extension manifest validator tools (if needed), verifying permissions: `offscreen`, `activeTab`, `scripting`, `storage`, `tabs` and host permissions `<all_urls>`.
-
-### Manual Testing Matrix
-1. **Device Selection**: Verify cameras and microphones are correctly listed and saved preferences persist.
-2. **Camera Snap**: Drag camera bubble to the center of the screen, let go, verify it snaps to the left/right margin smoothly.
-3. **Audio Glow**: Speak into the mic and check if the camera circle border pulses.
-4. **Drawing and Spotlight**: Enable annotations and ensure drawings disappear after 3 seconds. Enable spotlight and move cursor.
-5. **Page Navigation**: Start recording on a page (e.g. `wikipedia.org`), click a link, wait for navigation, and confirm the recording tools and camera overlay are restored immediately without losing context.
-6. **Transcript Syncing**: Wait for transcription segments to appear in the preview, click a segment, and confirm the video seeks to the correct time.
