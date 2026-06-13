@@ -25,6 +25,7 @@ const state = {
   settings: null,       // Recording settings from the popup
   recordingId: null,    // Unique ID for the current recording
   startTime: null,      // Timestamp when recording started
+  pendingWarning: null, // Mic warning to show once content script is ready
 };
 
 // ============================================================
@@ -52,6 +53,15 @@ async function routeMessage(message, sender, sendResponse) {
         sendResponse({ success: true, state: { ...state } });
         break;
 
+      case 'CHECK_RECORDABLE_TAB':
+        try {
+          const tab = await getRecordingTargetTab();
+          sendResponse({ success: true, tabId: tab.id, tabTitle: tab.title });
+        } catch (err) {
+          sendResponse({ success: false, error: err.message });
+        }
+        break;
+
       // ── From Offscreen Document ────────────────────────────
       case 'STREAMS_READY':
         await onStreamsReady();
@@ -65,6 +75,11 @@ async function routeMessage(message, sender, sendResponse) {
 
       case 'CAPTURE_ERROR':
         await onCaptureError(message.error);
+        sendResponse({ success: true });
+        break;
+
+      case 'MIC_UNAVAILABLE':
+        await onMicUnavailable(message.warning);
         sendResponse({ success: true });
         break;
 
@@ -112,15 +127,66 @@ async function routeMessage(message, sender, sendResponse) {
 // ============================================================
 
 /**
- * Step 1: User clicks "Start Recording" in the popup.
+ * Find the tab to record. Avoid extension/chrome internal pages.
+ */
+async function getRecordingTargetTab() {
+  // Popup open: active tab in last-focused window is usually the page to record
+  const [active] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+
+  if (active?.id && active.url && isRecordableUrl(active.url)) {
+    return active;
+  }
+
+  const tabs = await chrome.tabs.query({ lastFocusedWindow: true });
+  const recordable = tabs.filter(t => isRecordableUrl(t.url));
+
+  if (recordable.length === 0) {
+    throw new Error('Open a regular website (http/https) in your browser tab first, then click Start Recording.');
+  }
+
+  recordable.sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0));
+  return recordable[0];
+}
+
+/** Send a message to the offscreen document with retries. */
+function sendMessageAsync(message) {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage(message, (response) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+      } else {
+        resolve(response);
+      }
+    });
+  });
+}
+
+async function sendToOffscreen(message, maxAttempts = 10) {
+  for (let i = 0; i < maxAttempts; i++) {
+    try {
+      return await sendMessageAsync(message);
+    } catch (err) {
+      if (i === maxAttempts - 1) throw err;
+      await new Promise(r => setTimeout(r, 80 + i * 60));
+    }
+  }
+}
+
+function isRecordableUrl(url) {
+  if (!url) return false;
+  if (url.startsWith('http://') || url.startsWith('https://')) return true;
+  return false;
+}
+
+/**
+ * Step 1: User clicks "Start Recording" in the recorder panel.
  * → Create the offscreen document and ask it to acquire media streams.
  */
 async function onStartRecording(settings) {
   console.log('[FlowCast SW] Start recording requested', settings);
 
-  // Determine the active tab (where we'll inject content scripts)
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab) throw new Error('No active tab found.');
+  const tab = await getRecordingTargetTab();
+  if (!tab?.id) throw new Error('No active tab found.');
 
   // Generate a unique recording ID
   const recordingId = `rec_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
@@ -136,18 +202,16 @@ async function onStartRecording(settings) {
   // Persist state so we can recover if the service worker restarts
   await chrome.storage.session.set({ flowcast_state: { ...state } });
 
-  // Create the offscreen document (our recording engine)
   await ensureOffscreenDocument();
 
-  // Tell the offscreen document to acquire screen + mic streams
-  // We use a small delay to ensure the offscreen document's listener is ready
-  setTimeout(() => {
-    chrome.runtime.sendMessage({
-      type: 'OFFSCREEN_INIT',
-      settings,
-      recordingId,
-    });
-  }, 200);
+  // Brief pause for offscreen document scripts to register listeners
+  await new Promise(r => setTimeout(r, 150));
+
+  await sendToOffscreen({
+    type: 'OFFSCREEN_INIT',
+    settings,
+    recordingId,
+  });
 }
 
 /**
@@ -175,7 +239,9 @@ async function onStreamsReady() {
       chrome.tabs.sendMessage(state.tabId, {
         type: 'INIT_RECORDING_UI',
         settings: state.settings,
+        warning: state.pendingWarning,
       });
+      state.pendingWarning = null;
     }, 150);
 
   } catch (err) {
@@ -293,6 +359,14 @@ async function onCaptureError(error) {
   resetState();
 }
 
+/**
+ * Microphone could not be acquired — warn user but continue recording.
+ */
+async function onMicUnavailable(warning) {
+  console.warn('[FlowCast SW] Mic unavailable:', warning);
+  state.pendingWarning = warning;
+}
+
 function resetState() {
   Object.assign(state, {
     status: 'idle',
@@ -300,6 +374,7 @@ function resetState() {
     settings: null,
     recordingId: null,
     startTime: null,
+    pendingWarning: null,
   });
   chrome.storage.session.set({ flowcast_state: { ...state } });
 }

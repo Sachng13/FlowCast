@@ -80,86 +80,19 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function initPage() {
-  // Parse query params to decide what view to load
   const params = new URLSearchParams(window.location.search);
   const setup = params.get('setup');
   const recordingId = params.get('id');
 
   if (setup === 'true') {
-    showSetupView();
-  } else if (recordingId) {
+    window.location.replace(chrome.runtime.getURL('permissions/permissions.html'));
+    return;
+  }
+
+  if (recordingId) {
     loadSingleRecording(recordingId);
   } else {
     loadDashboard();
-    checkAndRequestPermissions();
-  }
-}
-
-function showSetupView() {
-  // Hide navbar, dashboard, and preview views
-  const navbar = document.querySelector('.navbar');
-  if (navbar) navbar.style.display = 'none';
-  dashboardView.style.display = 'none';
-  previewView.style.display = 'none';
-  
-  const setupView = document.getElementById('setup-view');
-  if (setupView) setupView.style.display = 'block';
-  
-  const grantBtn = document.getElementById('setup-grant-btn');
-  const statusEl = document.getElementById('setup-status');
-  
-  if (grantBtn) {
-    grantBtn.addEventListener('click', async () => {
-      try {
-        grantBtn.disabled = true;
-        if (statusEl) {
-          statusEl.style.display = 'block';
-          statusEl.className = 'setup-status';
-          statusEl.textContent = 'Requesting permissions...';
-        }
-        
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const hasVideoInput = devices.some(d => d.kind === 'videoinput');
-        
-        const constraints = { audio: true };
-        if (hasVideoInput) {
-          constraints.video = true;
-        }
-        
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
-        stream.getTracks().forEach(t => t.stop());
-        
-        if (statusEl) {
-          statusEl.className = 'setup-status success';
-          statusEl.textContent = '✨ Permissions granted! Closing tab...';
-        }
-        
-        setTimeout(() => {
-          window.close();
-        }, 1500);
-      } catch (err) {
-        console.error("Permissions setup failed:", err);
-        grantBtn.disabled = false;
-        if (statusEl) {
-          statusEl.className = 'setup-status error';
-          statusEl.textContent = '❌ Request failed or denied. Please try again.';
-        }
-      }
-    });
-  }
-}
-
-async function checkAndRequestPermissions() {
-  try {
-    // Request microphone and camera access in the active tab context.
-    // This prompts the standard browser dialog which persists for the extension's origin,
-    // enabling the offscreen capture API to acquire streams seamlessly.
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-    stream.getTracks().forEach(t => t.stop());
-    console.log("Microphone and Camera permissions verified successfully.");
-  } catch (err) {
-    console.warn("Permissions request failed or denied:", err);
-    showToast("Please allow Microphone and Camera permissions to enable audio and transcription.");
   }
 }
 

@@ -9,7 +9,6 @@
 <body>
   <div class="popup-container" id="popup-container">
 
-    <!-- ── Header ────────────────────────────────────── -->
     <header class="header">
       <div class="logo">
         <div class="logo-icon">
@@ -29,7 +28,12 @@
       <span class="version">v1.0</span>
     </header>
 
-    <!-- ── Recording Mode Tabs ───────────────────────── -->
+    <!-- Compact device status -->
+    <div class="device-status" id="device-status" style="display: none;">
+      <span class="status-chip" id="cam-chip"><span class="dot"></span> Camera</span>
+      <span class="status-chip" id="mic-chip"><span class="dot"></span> Mic</span>
+    </div>
+
     <div class="section">
       <label class="section-label">Recording Mode</label>
       <div class="mode-tabs" id="mode-tabs">
@@ -38,10 +42,6 @@
             <rect x="2" y="3" width="20" height="14" rx="2"/>
             <line x1="8" y1="21" x2="16" y2="21"/>
             <line x1="12" y1="17" x2="12" y2="21"/>
-          </svg>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-left:-2px">
-            <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"/>
-            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
           </svg>
           <span>Screen + Cam</span>
         </button>
@@ -63,7 +63,6 @@
       </div>
     </div>
 
-    <!-- ── Device Selection ──────────────────────────── -->
     <div class="section device-section" id="camera-section">
       <label class="section-label" for="camera-select">Camera</label>
       <div class="select-wrapper">
@@ -88,7 +87,6 @@
       </div>
     </div>
 
-    <!-- ── Quality Selector ──────────────────────────── -->
     <div class="section">
       <label class="section-label">Quality</label>
       <div class="quality-options" id="quality-options">
@@ -107,7 +105,6 @@
       </div>
     </div>
 
-    <!-- ── Start Button ──────────────────────────────── -->
     <button class="start-btn" id="start-btn">
       <div class="start-btn-glow"></div>
       <div class="start-btn-content">
@@ -116,14 +113,14 @@
       </div>
     </button>
 
-    <!-- ── Recording Active State ────────────────────── -->
+    <p class="start-hint" id="start-hint">A screen-share dialog will appear — pick your screen or tab.</p>
+
     <div class="recording-active" id="recording-active" style="display: none;">
       <div class="pulse-ring"></div>
       <span class="recording-text">Recording in progress...</span>
       <p class="recording-hint">Use the controls on the page to stop</p>
     </div>
 
-    <!-- ── Error Banner ──────────────────────────────── -->
     <div class="error-banner" id="error-banner" style="display: none;">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <circle cx="12" cy="12" r="10"/>
@@ -133,7 +130,6 @@
       <span id="error-text">An error occurred</span>
     </div>
 
-    <!-- ── Footer ────────────────────────────────────── -->
     <footer class="footer">
       <span class="shortcut-hint">
         <kbd>Alt</kbd> + <kbd>Shift</kbd> + <kbd>L</kbd> to open
@@ -141,13 +137,14 @@
     </footer>
   </div>
 
-  <!-- ── Permission Overlay ───────────────────────── -->
+  <!-- Small in-popup permission overlay (no separate tab) -->
   <div class="permission-overlay" id="permission-overlay" style="display: none;">
     <div class="permission-card">
       <div class="permission-icon">🎙️</div>
-      <h3>Mic & Cam Access Required</h3>
-      <p>FlowCast needs microphone and camera permissions to record audio and display the webcam overlay.</p>
+      <h3>Mic &amp; Cam Access</h3>
+      <p>Allow microphone and camera so FlowCast can record audio and show your webcam.</p>
       <button class="btn btn-primary" id="grant-permission-btn">Grant Permission</button>
+      <p class="permission-error" id="permission-error" style="display: none;"></p>
     </div>
   </div>
 

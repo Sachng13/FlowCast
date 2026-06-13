@@ -112,44 +112,63 @@
     }
 
     async init(cameraId) {
-      // Create the bubble container
       this.el = document.createElement('div');
       this.el.className = 'flowcast-camera-bubble';
 
-      // Create the video element
-      this.videoEl = document.createElement('video');
-      this.videoEl.className = 'flowcast-camera-video';
-      this.videoEl.autoplay = true;
-      this.videoEl.muted = true;
-      this.videoEl.playsInline = true;
-      this.el.appendChild(this.videoEl);
+      // Use extension-origin iframe so camera uses permissions granted in the popup,
+      // not the host page origin (which often blocks or lacks camera access).
+      this.iframe = document.createElement('iframe');
+      this.iframe.className = 'flowcast-camera-iframe';
+      this.iframe.allow = 'camera';
+      this.iframe.setAttribute('frameborder', '0');
+      this.iframe.setAttribute('scrolling', 'no');
+
+      const camParam = cameraId ? `?camId=${encodeURIComponent(cameraId)}` : '';
+      this.iframe.src = chrome.runtime.getURL(`camera/bubble.html${camParam}`);
+      this.el.appendChild(this.iframe);
 
       document.body.appendChild(this.el);
 
-      // Start camera stream
-      try {
-        const constraints = {
-          video: cameraId ? { deviceId: { exact: cameraId } } : true,
-          audio: false, // Do not request audio in content script to avoid unnecessary mic prompts on host pages
-        };
-        this.stream = await navigator.mediaDevices.getUserMedia(constraints);
-        this.videoEl.srcObject = this.stream;
+      this._onMessage = (event) => {
+        if (event.data?.type === 'FLOWCAST_CAM_ERROR') {
+          console.warn('[FlowCast] Camera iframe failed:', event.data.error);
+          this.showAvatarFallback();
+        }
+      };
+      window.addEventListener('message', this._onMessage);
 
-      } catch (err) {
-        console.warn('[FlowCast] Camera access failed:', err);
-        // Show a fallback avatar instead
-        this.el.style.background = 'linear-gradient(135deg, #1e1b4b, #312e81)';
-        this.el.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-size:48px;color:#6366f1;">👤</div>';
-      }
+      // Fallback if iframe never loads camera within 8s
+      this._loadTimeout = setTimeout(() => {
+        if (!this._cameraReady) {
+          console.warn('[FlowCast] Camera iframe timed out');
+          this.showAvatarFallback();
+        }
+      }, 8000);
 
-      // Bind drag events
+      window.addEventListener('message', this._onReady = (event) => {
+        if (event.data?.type === 'FLOWCAST_CAM_READY') {
+          this._cameraReady = true;
+          clearTimeout(this._loadTimeout);
+        }
+      });
+
       this.bindDrag();
 
-      // Double-click to cycle size
       this.el.addEventListener('dblclick', (e) => {
         e.preventDefault();
         this.cycleSize();
       });
+    }
+
+    showAvatarFallback() {
+      if (this.iframe) this.iframe.style.display = 'none';
+      this.el.style.background = 'linear-gradient(135deg, #1e1b4b, #312e81)';
+      if (!this.el.querySelector('.flowcast-avatar-fallback')) {
+        const fallback = document.createElement('div');
+        fallback.className = 'flowcast-avatar-fallback';
+        fallback.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-size:48px;color:#6366f1;">👤</div>';
+        this.el.appendChild(fallback);
+      }
     }
 
     // Audio monitor removed to prevent mic permission prompt on host page
@@ -221,6 +240,9 @@
     destroy() {
       if (this.audioAnimFrame) cancelAnimationFrame(this.audioAnimFrame);
       if (this.stream) this.stream.getTracks().forEach(t => t.stop());
+      if (this._onMessage) window.removeEventListener('message', this._onMessage);
+      if (this._onReady) window.removeEventListener('message', this._onReady);
+      if (this._loadTimeout) clearTimeout(this._loadTimeout);
       if (this.el) this.el.remove();
     }
   }
@@ -769,7 +791,7 @@
     handleMessage(message, sendResponse) {
       switch (message.type) {
         case 'INIT_RECORDING_UI':
-          this.initUI(message.settings, message.skipCountdown);
+          this.initUI(message.settings, message.skipCountdown, message.warning);
           sendResponse({ success: true });
           break;
 
@@ -788,17 +810,26 @@
           sendResponse({ success: true });
           break;
 
+        case 'SHOW_WARNING':
+          this.showWarning(message.message);
+          sendResponse({ success: true });
+          break;
+
         default:
           break;
       }
     }
 
-    async initUI(settings, skipCountdown = false) {
+    async initUI(settings, skipCountdown = false, warning = null) {
       if (this._isInitialized) {
         this.destroy();
       }
       this._isInitialized = true;
       this.settings = settings;
+
+      if (warning) {
+        this.showWarning(warning);
+      }
 
       // Create the annotation canvas (behind everything else)
       this.annotationCanvas = new AnnotationCanvas();
@@ -833,13 +864,6 @@
           chrome.runtime.sendMessage({ type: 'RESUME_RECORDING' });
         },
         onMuteToggle: (muted) => {
-          // Mute/unmute mic in the content script's camera bubble stream
-          if (this.cameraBubble?.stream) {
-            this.cameraBubble.stream.getAudioTracks().forEach(t => {
-              t.enabled = !muted;
-            });
-          }
-          // Also tell offscreen to mute mic
           chrome.runtime.sendMessage({ type: muted ? 'OFFSCREEN_MUTE_MIC' : 'OFFSCREEN_UNMUTE_MIC' });
         },
         onDrawToggle: (active) => {
@@ -874,6 +898,14 @@
         this.annotationCanvas?.setSpotlight(false);
         this.processingOverlay.show();
       }
+    }
+
+    showWarning(message) {
+      const el = document.createElement('div');
+      el.className = 'flowcast-warning-toast';
+      el.textContent = message;
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 5000);
     }
 
     spawnEmojiReaction(emoji) {

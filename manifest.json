@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "FlowCast",
-  "version": "1.0.0",
+  "version": "1.1.1",
   "description": "Premium screen recording with camera overlay, live annotations, and real-time transcription — built for async communication.",
 
   "permissions": [
@@ -16,6 +16,7 @@
 
   "action": {
     "default_popup": "popup/popup.html",
+    "default_title": "FlowCast",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",
@@ -44,7 +45,7 @@
 
   "web_accessible_resources": [
     {
-      "resources": ["content/content.css"],
+      "resources": ["content/content.css", "camera/bubble.html", "camera/bubble.js"],
       "matches": ["<all_urls>"]
     }
   ]

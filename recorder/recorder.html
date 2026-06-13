@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FlowCast Recorder</title>
+  <link rel="stylesheet" href="recorder.css">
+</head>
+<body>
+  <div class="recorder-app" id="recorder-app">
+
+    <!-- Permission gate (Loom-style first step) -->
+    <div class="permission-gate" id="permission-gate">
+      <div class="gate-icon">🎬</div>
+      <h2>Welcome to FlowCast</h2>
+      <p>Allow camera and microphone access so you can preview your feed before recording — just like Loom.</p>
+      <button class="btn-primary" id="grant-btn">Allow Camera &amp; Microphone</button>
+      <p class="gate-error" id="gate-error" hidden></p>
+    </div>
+
+    <!-- Main recorder UI (shown after permissions) -->
+    <div class="recorder-main" id="recorder-main" hidden>
+
+      <header class="recorder-header">
+        <div class="logo">
+          <span class="logo-dot"></span>
+          <span class="logo-text">FlowCast</span>
+        </div>
+        <a class="library-link" id="library-link" href="#" title="View recordings">Library</a>
+      </header>
+
+      <!-- Live preview area -->
+      <div class="preview-section">
+        <div class="preview-frame" id="preview-frame">
+          <video id="camera-preview" autoplay muted playsinline></video>
+          <div class="preview-placeholder" id="preview-placeholder">
+            <span>📷</span>
+            <p>Camera preview</p>
+          </div>
+        </div>
+
+        <!-- Device status indicators (Loom-style) -->
+        <div class="status-row">
+          <div class="status-pill" id="cam-status">
+            <span class="status-dot" id="cam-dot"></span>
+            <span id="cam-label">Camera</span>
+          </div>
+          <div class="status-pill" id="mic-status">
+            <span class="status-dot" id="mic-dot"></span>
+            <span id="mic-label">Microphone</span>
+          </div>
+        </div>
+
+        <!-- Audio level meter -->
+        <div class="audio-meter-wrap">
+          <span class="meter-label">Mic level</span>
+          <div class="audio-meter" id="audio-meter">
+            <div class="meter-bar" data-i="0"></div>
+            <div class="meter-bar" data-i="1"></div>
+            <div class="meter-bar" data-i="2"></div>
+            <div class="meter-bar" data-i="3"></div>
+            <div class="meter-bar" data-i="4"></div>
+            <div class="meter-bar" data-i="5"></div>
+            <div class="meter-bar" data-i="6"></div>
+            <div class="meter-bar" data-i="7"></div>
+            <div class="meter-bar" data-i="8"></div>
+            <div class="meter-bar" data-i="9"></div>
+            <div class="meter-bar" data-i="10"></div>
+            <div class="meter-bar" data-i="11"></div>
+          </div>
+          <span class="meter-hint" id="meter-hint">Speak to test your mic</span>
+        </div>
+      </div>
+
+      <!-- Mode tabs -->
+      <div class="section">
+        <label class="section-label">Recording Mode</label>
+        <div class="mode-tabs" id="mode-tabs">
+          <button class="mode-tab active" data-mode="screen-cam">Screen + Cam</button>
+          <button class="mode-tab" data-mode="screen">Screen</button>
+          <button class="mode-tab" data-mode="cam">Cam Only</button>
+        </div>
+      </div>
+
+      <!-- Device selectors -->
+      <div class="section" id="camera-section">
+        <label class="section-label" for="camera-select">Camera</label>
+        <select id="camera-select" class="select"></select>
+      </div>
+
+      <div class="section">
+        <label class="section-label" for="mic-select">Microphone</label>
+        <select id="mic-select" class="select"></select>
+      </div>
+
+      <div class="section">
+        <label class="section-label">Quality</label>
+        <div class="quality-row">
+          <label class="quality-chip"><input type="radio" name="quality" value="720p">720p</label>
+          <label class="quality-chip"><input type="radio" name="quality" value="1080p" checked>1080p</label>
+          <label class="quality-chip"><input type="radio" name="quality" value="4k">4K</label>
+        </div>
+      </div>
+
+      <button class="btn-record" id="start-btn" disabled>
+        <span class="rec-icon"></span>
+        Start Recording
+      </button>
+
+      <p class="record-hint" id="record-hint">When sharing your screen, enable <strong>"Share tab audio"</strong> in the browser dialog to capture system sound.</p>
+
+      <div class="error-banner" id="error-banner" hidden>
+        <span id="error-text"></span>
+      </div>
+
+      <div class="recording-active" id="recording-active" hidden>
+        <div class="pulse-ring"></div>
+        <span>Recording in progress…</span>
+        <p>Use controls on the page to stop</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="recorder.js"></script>
+</body>
+</html>

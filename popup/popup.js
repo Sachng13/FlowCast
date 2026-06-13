@@ -1,217 +1,236 @@
 /**
  * FlowCast — Popup Logic
- * 
- * Handles device enumeration, user preferences, and recording initiation.
- * Communicates with the Service Worker to start/manage recordings.
+ * Small extension popup with inline permissions and recording controls.
  */
 
-// ============================================================
-//  DOM REFERENCES
-// ============================================================
+const modeTabs       = document.querySelectorAll('.mode-tab');
+const cameraSection  = document.getElementById('camera-section');
+const cameraSelect   = document.getElementById('camera-select');
+const micSelect      = document.getElementById('mic-select');
+const startBtn       = document.getElementById('start-btn');
+const recordingView  = document.getElementById('recording-active');
+const errorBanner    = document.getElementById('error-banner');
+const errorText      = document.getElementById('error-text');
+const deviceStatus   = document.getElementById('device-status');
+const camChip        = document.getElementById('cam-chip');
+const micChip        = document.getElementById('mic-chip');
 
-const modeTabs      = document.querySelectorAll('.mode-tab');
-const cameraSection = document.getElementById('camera-section');
-const cameraSelect  = document.getElementById('camera-select');
-const micSelect     = document.getElementById('mic-select');
-const startBtn      = document.getElementById('start-btn');
-const recordingView = document.getElementById('recording-active');
-const errorBanner   = document.getElementById('error-banner');
-const errorText     = document.getElementById('error-text');
-const popupContainer = document.getElementById('popup-container');
+let selectedMode = 'screen-cam';
+let eventsBound = false;
+let previewStream = null;
 
-// ============================================================
-//  STATE
-// ============================================================
-
-let selectedMode = 'screen-cam'; // screen-cam | screen | cam
-
-// ============================================================
-//  INITIALIZATION
-// ============================================================
+// ── Permissions ────────────────────────────────────────────
 
 async function checkPermissionsGranted() {
   try {
     const devices = await navigator.mediaDevices.enumerateDevices();
-    const audioDevices = devices.filter(d => d.kind === 'audioinput');
-    if (audioDevices.length === 0) return false;
-    return audioDevices.some(d => d.label !== '');
-  } catch (err) {
+    return devices.some(d =>
+      (d.kind === 'audioinput' || d.kind === 'videoinput') && d.label !== ''
+    );
+  } catch (_) {
     return false;
   }
+}
+
+async function requestPermissionsInPopup() {
+  const stream = await navigator.mediaDevices.getUserMedia({
+    audio: { echoCancellation: true, noiseSuppression: true },
+    video: { width: { ideal: 640 }, height: { ideal: 480 } },
+  });
+  stream.getTracks().forEach(t => t.stop());
+  await chrome.storage.local.set({ flowcast_permissions_granted: Date.now() });
 }
 
 function showPermissionOverlay() {
   const overlay = document.getElementById('permission-overlay');
   if (overlay) overlay.style.display = 'flex';
-  
+
   const grantBtn = document.getElementById('grant-permission-btn');
-  if (grantBtn) {
-    grantBtn.addEventListener('click', async () => {
-      try {
-        // Try to request permissions directly in the popup first
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const hasVideoInput = devices.some(d => d.kind === 'videoinput');
-        
-        const constraints = { audio: true };
-        if (hasVideoInput) {
-          constraints.video = true;
-        }
-        
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
-        stream.getTracks().forEach(t => t.stop());
-        
-        // Success! Hide overlay and initialize popup controls
-        if (overlay) overlay.style.display = 'none';
-        await checkCurrentState();
-        await enumerateDevices();
-        await loadSavedSettings();
-        bindEvents();
-      } catch (err) {
-        console.warn("Failed to request inside popup, opening setup tab:", err);
-        // Fallback: Open permissions setup page in a new tab
-        chrome.tabs.create({
-          url: chrome.runtime.getURL('preview/preview.html?setup=true')
-        });
+  const permError = document.getElementById('permission-error');
+  if (!grantBtn || grantBtn.dataset.bound) return;
+  grantBtn.dataset.bound = 'true';
+
+  grantBtn.addEventListener('click', async () => {
+    grantBtn.disabled = true;
+    if (permError) permError.style.display = 'none';
+
+    try {
+      await requestPermissionsInPopup();
+      if (overlay) overlay.style.display = 'none';
+      await initializePopup();
+    } catch (err) {
+      grantBtn.disabled = false;
+      if (permError) {
+        permError.style.display = 'block';
+        permError.textContent = err.name === 'NotAllowedError'
+          ? 'Permission denied. Allow access in the browser prompt and try again.'
+          : err.message;
       }
-    });
-  }
+    }
+  });
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
-  const isGranted = await checkPermissionsGranted();
-  if (!isGranted) {
-    showPermissionOverlay();
-    return;
-  }
+// ── Init ───────────────────────────────────────────────────
+
+async function initializePopup() {
   await checkCurrentState();
   await enumerateDevices();
   await loadSavedSettings();
+  await verifyDevices();
   bindEvents();
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  if (await checkPermissionsGranted()) {
+    await initializePopup();
+  } else {
+    showPermissionOverlay();
+  }
 });
 
-/**
- * Check if a recording is already in progress.
- * If so, show the "recording active" state instead of the controls.
- */
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'local' || !changes.flowcast_permissions_granted) return;
+  const overlay = document.getElementById('permission-overlay');
+  if (overlay?.style.display !== 'none') {
+    overlay.style.display = 'none';
+    initializePopup();
+  }
+});
+
 async function checkCurrentState() {
   try {
     const response = await chrome.runtime.sendMessage({ type: 'GET_STATE' });
     if (response?.success && response.state?.status !== 'idle') {
       showRecordingActive();
     }
-
-    // Check for stored errors
     const data = await chrome.storage.session.get('flowcast_error');
     if (data.flowcast_error) {
       showError(data.flowcast_error);
       await chrome.storage.session.remove('flowcast_error');
     }
-  } catch (err) {
-    console.log('[FlowCast Popup] No active state');
-  }
+  } catch (_) {}
 }
 
-// ============================================================
-//  DEVICE ENUMERATION
-// ============================================================
+// ── Device enumeration & verification ────────────────────────
 
 async function enumerateDevices() {
   try {
-    // Request a temporary stream to trigger the permission prompt
-    // This is needed for enumerating device labels
-    let tempStream = null;
-    try {
-      tempStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-    } catch (_) {
-      // If both fail, try audio only
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const needsPrompt = !devices.some(
+      d => (d.kind === 'audioinput' || d.kind === 'videoinput') && d.label !== ''
+    );
+
+    if (needsPrompt) {
       try {
-        tempStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      } catch (__) {
-        // Can't enumerate with labels — fallback to generic names
+        const s = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+        s.getTracks().forEach(t => t.stop());
+      } catch (_) {
+        try {
+          const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+          s.getTracks().forEach(t => t.stop());
+        } catch (__) {}
       }
     }
 
-    const devices = await navigator.mediaDevices.enumerateDevices();
+    const updated = await navigator.mediaDevices.enumerateDevices();
 
-    // Populate camera dropdown
-    const cameras = devices.filter(d => d.kind === 'videoinput');
-    cameraSelect.innerHTML = '';
-    if (cameras.length === 0) {
-      cameraSelect.innerHTML = '<option value="">No camera found</option>';
-    } else {
-      cameras.forEach((cam, i) => {
-        const option = document.createElement('option');
-        option.value = cam.deviceId;
-        option.textContent = cam.label || `Camera ${i + 1}`;
-        cameraSelect.appendChild(option);
-      });
-    }
+    const cameras = updated.filter(d => d.kind === 'videoinput');
+    cameraSelect.innerHTML = cameras.length
+      ? cameras.map((c, i) => `<option value="${c.deviceId}">${c.label || `Camera ${i + 1}`}</option>`).join('')
+      : '<option value="">No camera</option>';
 
-    // Populate microphone dropdown
-    const mics = devices.filter(d => d.kind === 'audioinput');
-    micSelect.innerHTML = '';
-    if (mics.length === 0) {
-      micSelect.innerHTML = '<option value="">No microphone found</option>';
-    } else {
-      mics.forEach((mic, i) => {
-        const option = document.createElement('option');
-        option.value = mic.deviceId;
-        option.textContent = mic.label || `Microphone ${i + 1}`;
-        micSelect.appendChild(option);
-      });
-    }
-
-    // Release the temporary stream
-    if (tempStream) {
-      tempStream.getTracks().forEach(t => t.stop());
-    }
+    const mics = updated.filter(d => d.kind === 'audioinput');
+    micSelect.innerHTML = mics.length
+      ? mics.map((m, i) => `<option value="${m.deviceId}">${m.label || `Mic ${i + 1}`}</option>`).join('')
+      : '<option value="">No microphone</option>';
   } catch (err) {
-    console.error('[FlowCast Popup] Device enumeration failed:', err);
     cameraSelect.innerHTML = '<option value="">Permission required</option>';
     micSelect.innerHTML = '<option value="">Permission required</option>';
   }
 }
 
-// ============================================================
-//  SETTINGS PERSISTENCE
-// ============================================================
+/** Quick check that selected devices work — updates green status chips. */
+async function verifyDevices() {
+  stopPreviewStream();
+
+  const wantVideo = selectedMode !== 'screen';
+  const camId = cameraSelect.value;
+  const micId = micSelect.value;
+
+  const constraints = {};
+  if (wantVideo) {
+    constraints.video = camId
+      ? { deviceId: { ideal: camId }, width: { ideal: 320 }, height: { ideal: 240 } }
+      : { width: { ideal: 320 }, height: { ideal: 240 } };
+  }
+  constraints.audio = micId
+    ? { deviceId: { ideal: micId }, echoCancellation: true }
+    : { echoCancellation: true };
+
+  if (selectedMode === 'screen') delete constraints.video;
+
+  let camOk = selectedMode === 'screen';
+  let micOk = false;
+
+  try {
+    previewStream = await navigator.mediaDevices.getUserMedia(constraints);
+    camOk = wantVideo ? previewStream.getVideoTracks().some(t => t.readyState === 'live') : true;
+    micOk = previewStream.getAudioTracks().some(t => t.readyState === 'live');
+  } catch (err) {
+    // Try audio-only fallback
+    if (wantVideo) {
+      try {
+        previewStream = await navigator.mediaDevices.getUserMedia({
+          audio: constraints.audio,
+        });
+        micOk = previewStream.getAudioTracks().length > 0;
+        camOk = false;
+      } catch (_) {}
+    }
+  }
+
+  deviceStatus.style.display = 'flex';
+  setChip(camChip, camOk || selectedMode === 'screen');
+  setChip(micChip, micOk);
+}
+
+function setChip(el, ok) {
+  el.classList.toggle('ok', ok);
+  el.classList.toggle('fail', !ok);
+}
+
+function stopPreviewStream() {
+  if (previewStream) {
+    previewStream.getTracks().forEach(t => t.stop());
+    previewStream = null;
+  }
+}
+
+// ── Settings ───────────────────────────────────────────────
 
 async function loadSavedSettings() {
-  try {
-    const data = await chrome.storage.local.get('flowcast_settings');
-    const settings = data.flowcast_settings;
-    if (!settings) return;
+  const { flowcast_settings: s } = await chrome.storage.local.get('flowcast_settings');
+  if (!s) return;
 
-    // Restore recording mode
-    if (settings.mode) {
-      selectedMode = settings.mode;
-      modeTabs.forEach(tab => {
-        tab.classList.toggle('active', tab.dataset.mode === selectedMode);
-      });
-      updateModeVisibility();
-    }
-
-    // Restore quality
-    if (settings.quality) {
-      const radio = document.querySelector(`input[name="quality"][value="${settings.quality}"]`);
-      if (radio) radio.checked = true;
-    }
-
-    // Restore selected devices (after enumeration)
-    if (settings.camId && cameraSelect.querySelector(`option[value="${settings.camId}"]`)) {
-      cameraSelect.value = settings.camId;
-    }
-    if (settings.micId && micSelect.querySelector(`option[value="${settings.micId}"]`)) {
-      micSelect.value = settings.micId;
-    }
-  } catch (err) {
-    console.log('[FlowCast Popup] No saved settings');
+  if (s.mode) {
+    selectedMode = s.mode;
+    modeTabs.forEach(t => t.classList.toggle('active', t.dataset.mode === selectedMode));
+    updateModeVisibility();
+  }
+  if (s.quality) {
+    const radio = document.querySelector(`input[name="quality"][value="${s.quality}"]`);
+    if (radio) radio.checked = true;
+  }
+  if (s.camId && cameraSelect.querySelector(`option[value="${s.camId}"]`)) {
+    cameraSelect.value = s.camId;
+  }
+  if (s.micId && micSelect.querySelector(`option[value="${s.micId}"]`)) {
+    micSelect.value = s.micId;
   }
 }
 
 async function saveSettings() {
-  const settings = getCurrentSettings();
-  await chrome.storage.local.set({ flowcast_settings: settings });
+  await chrome.storage.local.set({ flowcast_settings: getCurrentSettings() });
 }
 
 function getCurrentSettings() {
@@ -222,87 +241,96 @@ function getCurrentSettings() {
     micId: micSelect.value || null,
     micEnabled: true,
     quality,
-    camEnabled: selectedMode === 'screen-cam' || selectedMode === 'cam',
+    camEnabled: selectedMode === 'screen-cam',
     screenEnabled: selectedMode === 'screen-cam' || selectedMode === 'screen',
   };
 }
 
-// ============================================================
-//  EVENT HANDLERS
-// ============================================================
+// ── Events ─────────────────────────────────────────────────
 
 function bindEvents() {
-  // Mode tab switching
+  if (eventsBound) return;
+  eventsBound = true;
+
   modeTabs.forEach(tab => {
-    tab.addEventListener('click', () => {
+    tab.addEventListener('click', async () => {
       modeTabs.forEach(t => t.classList.remove('active'));
       tab.classList.add('active');
       selectedMode = tab.dataset.mode;
       updateModeVisibility();
-      saveSettings();
+      await saveSettings();
+      await verifyDevices();
     });
   });
 
-  // Device & quality change → auto-save
-  cameraSelect.addEventListener('change', saveSettings);
-  micSelect.addEventListener('change', saveSettings);
-  document.querySelectorAll('input[name="quality"]').forEach(radio => {
-    radio.addEventListener('change', saveSettings);
+  cameraSelect.addEventListener('change', async () => {
+    await saveSettings();
+    await verifyDevices();
   });
 
-  // Start Recording button
+  micSelect.addEventListener('change', async () => {
+    await saveSettings();
+    await verifyDevices();
+  });
+
+  document.querySelectorAll('input[name="quality"]').forEach(r => {
+    r.addEventListener('change', saveSettings);
+  });
+
   startBtn.addEventListener('click', handleStartRecording);
 }
 
 function updateModeVisibility() {
-  // Hide camera dropdown when in "screen only" mode
   cameraSection.style.display = selectedMode === 'screen' ? 'none' : 'flex';
+  const hint = document.getElementById('start-hint');
+  if (hint) {
+    hint.textContent = selectedMode === 'cam'
+      ? 'Recording starts with a countdown on the current page.'
+      : 'A screen-share dialog will appear — pick your screen or tab.';
+  }
 }
 
 async function handleStartRecording() {
-  // Prevent double-clicks
   startBtn.disabled = true;
-
-  // Hide any previous errors
   errorBanner.style.display = 'none';
 
   const settings = getCurrentSettings();
 
   try {
-    // Save settings before starting
+    // Verify there is a recordable tab before proceeding
+    const tabCheck = await chrome.runtime.sendMessage({ type: 'CHECK_RECORDABLE_TAB' });
+    if (!tabCheck?.success) {
+      showError(tabCheck?.error || 'No recordable tab found. Open a website first.');
+      startBtn.disabled = false;
+      return;
+    }
+
+    stopPreviewStream();
     await saveSettings();
 
-    // Send the start command to the Service Worker
     const response = await chrome.runtime.sendMessage({
       type: 'START_RECORDING',
       settings,
     });
 
     if (response?.success) {
-      // Close the popup — the content script will take over
-      // Short delay so the user sees the button state change
       showRecordingActive();
-
-      // Close popup after a moment
-      setTimeout(() => window.close(), 800);
+      // Keep popup open briefly so screen-share picker can appear
+      setTimeout(() => window.close(), 1200);
     } else {
       showError(response?.error || 'Failed to start recording');
       startBtn.disabled = false;
+      await verifyDevices();
     }
   } catch (err) {
-    console.error('[FlowCast Popup] Start recording error:', err);
-    showError('Failed to communicate with the extension. Try reloading.');
+    showError(err.message || 'Failed to start recording. Reload the extension.');
     startBtn.disabled = false;
+    await verifyDevices();
   }
 }
 
-// ============================================================
-//  UI STATE CHANGES
-// ============================================================
-
 function showRecordingActive() {
-  // Hide the controls and show the recording state
-  document.querySelectorAll('.section, .start-btn, .footer').forEach(el => {
+  document.querySelectorAll('.section, .start-btn, .footer, .device-status, .start-hint').forEach(el => {
     el.style.display = 'none';
   });
   recordingView.style.display = 'flex';
@@ -312,3 +340,5 @@ function showError(message) {
   errorText.textContent = message;
   errorBanner.style.display = 'flex';
 }
+
+window.addEventListener('unload', stopPreviewStream);

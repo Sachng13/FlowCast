@@ -97,74 +97,137 @@ async function handleInit(settings, recordingId) {
   hasError = false;
 
   try {
-    // ── Screen Capture ─────────────────────────────────────
-    const displayConstraints = {
-      video: {
-        // Request high quality; browser will downscale if needed
+    const isCamOnly = settings.mode === 'cam';
+
+    if (isCamOnly) {
+      // ── Camera-Only: capture video + mic in one call for reliability ──
+      const videoConstraints = {
         width: { ideal: getResolutionWidth(settings.quality) },
         height: { ideal: getResolutionHeight(settings.quality) },
         frameRate: { ideal: 30 },
-      },
-      audio: true,  // Request system/tab audio
-    };
+      };
+      if (settings.camId) {
+        videoConstraints.deviceId = { ideal: settings.camId };
+      }
 
-    screenStream = await navigator.mediaDevices.getDisplayMedia(displayConstraints);
+      const audioConstraints = {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      };
+      if (settings.micId) {
+        audioConstraints.deviceId = { ideal: settings.micId };
+      }
 
-    // Listen for the user clicking "Stop sharing" in the browser's native UI
-    screenStream.getVideoTracks()[0].addEventListener('ended', () => {
-      console.log('[FlowCast Offscreen] Screen sharing stopped by user');
-      handleStop();
-    });
-
-    // ── Microphone Capture ─────────────────────────────────
-    if (settings.micEnabled !== false) {
+      let camStream;
       try {
-        const audioConstraints = {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        };
-        if (settings.micId && typeof settings.micId === 'string' && settings.micId.trim() !== '') {
-          audioConstraints.deviceId = { exact: settings.micId };
-        }
-        micStream = await navigator.mediaDevices.getUserMedia({
-          audio: audioConstraints,
-          video: false,
+        camStream = await navigator.mediaDevices.getUserMedia({
+          video: videoConstraints,
+          audio: settings.micEnabled !== false ? audioConstraints : false,
         });
-      } catch (micErr) {
-        console.warn('[FlowCast Offscreen] Mic capture failed with exact ID, trying default:', micErr);
-        try {
-          micStream = await navigator.mediaDevices.getUserMedia({
-            audio: {
-              echoCancellation: true,
-              noiseSuppression: true,
-              autoGainControl: true,
-            },
-            video: false,
-          });
-        } catch (fallbackErr) {
-          console.warn('[FlowCast Offscreen] Default mic capture also failed:', fallbackErr);
-          micStream = null;
-        }
+      } catch (camErr) {
+        // Retry without device IDs
+        delete videoConstraints.deviceId;
+        delete audioConstraints.deviceId;
+        camStream = await navigator.mediaDevices.getUserMedia({
+          video: videoConstraints,
+          audio: settings.micEnabled !== false ? audioConstraints : false,
+        });
+      }
+
+      screenStream = new MediaStream(camStream.getVideoTracks());
+      if (camStream.getAudioTracks().length > 0) {
+        micStream = new MediaStream(camStream.getAudioTracks());
+      } else if (settings.micEnabled !== false) {
+        micStream = await acquireMicStream(settings.micId);
+      }
+
+      camStream.getVideoTracks()[0]?.addEventListener('ended', () => {
+        console.log('[FlowCast Offscreen] Camera track ended');
+        handleStop();
+      });
+    } else {
+      // ── Screen Capture ───────────────────────────────────
+      const displayConstraints = {
+        video: {
+          width: { ideal: getResolutionWidth(settings.quality) },
+          height: { ideal: getResolutionHeight(settings.quality) },
+          frameRate: { ideal: 30 },
+        },
+        audio: true,
+      };
+
+      screenStream = await navigator.mediaDevices.getDisplayMedia(displayConstraints);
+
+      screenStream.getVideoTracks()[0].addEventListener('ended', () => {
+        console.log('[FlowCast Offscreen] Screen sharing stopped by user');
+        handleStop();
+      });
+    }
+
+    // ── Microphone Capture (skip if already acquired e.g. cam-only mode) ──
+    if (settings.micEnabled !== false && !micStream) {
+      micStream = await acquireMicStream(settings.micId);
+      if (!micStream) {
+        chrome.runtime.sendMessage({
+          type: 'MIC_UNAVAILABLE',
+          warning: 'Microphone unavailable — recording will continue without mic audio.',
+        });
       }
     }
 
-    // ── Combine Streams ────────────────────────────────────
+    // Verify video track is live before proceeding
+    const videoTrack = screenStream?.getVideoTracks()[0];
+    if (!videoTrack || videoTrack.readyState !== 'live') {
+      throw new Error('Video track is not active. Please try again.');
+    }
+
     combinedStream = buildCombinedStream(screenStream, micStream);
 
-    // Notify the service worker that streams are ready
     chrome.runtime.sendMessage({ type: 'STREAMS_READY' });
 
   } catch (err) {
     console.error('[FlowCast Offscreen] Stream acquisition failed:', err);
 
-    // User cancelled the screen picker or permission was denied
+    const isCamOnly = settings.mode === 'cam';
     chrome.runtime.sendMessage({
       type: 'CAPTURE_ERROR',
       error: err.name === 'NotAllowedError'
-        ? 'Screen sharing was cancelled or denied.'
-        : `Failed to capture screen: ${err.message}`,
+        ? (isCamOnly ? 'Camera access was denied.' : 'Screen sharing was cancelled or denied.')
+        : `Failed to capture ${isCamOnly ? 'camera' : 'screen'}: ${err.message}`,
     });
+  }
+}
+
+/**
+ * Acquire microphone stream, trying selected device then default.
+ */
+async function acquireMicStream(micId) {
+  const audioBase = {
+    echoCancellation: true,
+    noiseSuppression: true,
+    autoGainControl: true,
+  };
+
+  if (micId) {
+    try {
+      return await navigator.mediaDevices.getUserMedia({
+        audio: { ...audioBase, deviceId: { ideal: micId } },
+        video: false,
+      });
+    } catch (err) {
+      console.warn('[FlowCast Offscreen] Mic with device ID failed, trying default:', err);
+    }
+  }
+
+  try {
+    return await navigator.mediaDevices.getUserMedia({
+      audio: audioBase,
+      video: false,
+    });
+  } catch (err) {
+    console.warn('[FlowCast Offscreen] Default mic capture failed:', err);
+    return null;
   }
 }
 
@@ -179,15 +242,17 @@ async function handleInit(settings, recordingId) {
  */
 function buildCombinedStream(screen, mic) {
   const videoTrack = screen.getVideoTracks()[0];
+  if (!videoTrack) {
+    throw new Error('No video track available from capture source.');
+  }
+
   const systemAudioTracks = screen.getAudioTracks();
   const micAudioTracks = mic ? mic.getAudioTracks() : [];
 
-  // If no audio at all, return video-only stream
   if (systemAudioTracks.length === 0 && micAudioTracks.length === 0) {
     return new MediaStream([videoTrack]);
   }
 
-  // If only one audio source, no mixing needed
   if (systemAudioTracks.length === 0 && micAudioTracks.length > 0) {
     return new MediaStream([videoTrack, micAudioTracks[0]]);
   }
@@ -242,7 +307,7 @@ function handleStartRecorder() {
     return;
   }
 
-  const hasAudio = combinedStream && combinedStream.getAudioTracks().length > 0;
+  const hasAudio = combinedStream.getAudioTracks().length > 0;
   const mimeType = getSupportedMimeType(hasAudio);
 
   const options = {
@@ -250,7 +315,23 @@ function handleStartRecorder() {
     videoBitsPerSecond: getBitrate(currentSettings.quality),
   };
 
-  mediaRecorder = new MediaRecorder(combinedStream, options);
+  if (hasAudio) {
+    options.audioBitsPerSecond = 128_000;
+  }
+
+  // Verify MediaRecorder accepts this mime type
+  if (!MediaRecorder.isTypeSupported(mimeType)) {
+    delete options.mimeType;
+  }
+
+  try {
+    mediaRecorder = new MediaRecorder(combinedStream, options);
+  } catch (recErr) {
+    console.warn('[FlowCast Offscreen] MediaRecorder init failed, retrying without mimeType:', recErr);
+    mediaRecorder = new MediaRecorder(combinedStream, {
+      videoBitsPerSecond: getBitrate(currentSettings.quality),
+    });
+  }
   recordedChunks = [];
 
   // Collect data chunks every second for smoother saving
@@ -265,6 +346,10 @@ function handleStartRecorder() {
     if (hasError || recordedChunks.length === 0) {
       console.warn('[FlowCast Offscreen] Recording failed or empty, skipping save.');
       cleanupStreams();
+      chrome.runtime.sendMessage({
+        type: 'CAPTURE_ERROR',
+        error: 'Recording was empty — no video data captured. Try recording for at least 2 seconds.',
+      });
       return;
     }
     await saveRecording();
@@ -279,8 +364,8 @@ function handleStartRecorder() {
     });
   };
 
-  // Start recording with 1-second timeslices
-  mediaRecorder.start(1000);
+  // Start recording — use 250ms timeslices so short recordings still get data
+  mediaRecorder.start(250);
   recordingStartTime = Date.now();
 }
 
@@ -301,9 +386,20 @@ function handleResume() {
 function handleStop() {
   console.log('[FlowCast Offscreen] Stopping...');
 
-  // Stop the MediaRecorder (triggers onstop → saveRecording)
   if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-    mediaRecorder.stop();
+    try {
+      if (mediaRecorder.state === 'recording') {
+        mediaRecorder.requestData();
+      }
+      mediaRecorder.stop();
+    } catch (err) {
+      console.error('[FlowCast Offscreen] Stop error:', err);
+      cleanupStreams();
+      chrome.runtime.sendMessage({
+        type: 'CAPTURE_ERROR',
+        error: 'Failed to stop recording.',
+      });
+    }
   } else {
     // If recorder was never started, just clean up
     cleanupStreams();
@@ -414,16 +510,19 @@ function getBitrate(quality) {
 
 function getSupportedMimeType(hasAudio) {
   const candidates = hasAudio ? [
-    'video/webm;codecs=vp8,opus',
     'video/webm;codecs=vp9,opus',
+    'video/webm;codecs=vp8,opus',
+    'video/webm;codecs=h264,opus',
     'video/webm',
+    'video/mp4',
   ] : [
-    'video/webm;codecs=vp8',
     'video/webm;codecs=vp9',
+    'video/webm;codecs=vp8',
     'video/webm',
+    'video/mp4',
   ];
   for (const mime of candidates) {
     if (MediaRecorder.isTypeSupported(mime)) return mime;
   }
-  return 'video/webm'; // Fallback
+  return '';
 }
